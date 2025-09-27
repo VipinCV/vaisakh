@@ -381,265 +381,318 @@
         </footer>
     </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.1.0/paho-mqtt.min.js"></script>
+    <!-- Alternative MQTT library loading with fallback -->
     <script>
-        // MQTT Client variables
-        let client = null;
-        let isConnected = false;
-        
-        // DOM Elements
-        const connectionIndicator = document.getElementById('connectionIndicator');
-        const connectionStatus = document.getElementById('connectionStatus');
-        const connectBtn = document.getElementById('connectBtn');
-        const disconnectBtn = document.getElementById('disconnectBtn');
-        const startBtn = document.getElementById('startBtn');
-        const stopBtn = document.getElementById('stopBtn');
-        const autoBtn = document.getElementById('autoBtn');
-        const emergencyBtn = document.getElementById('emergencyBtn');
-        const sendCommandBtn = document.getElementById('sendCommandBtn');
-        const logContainer = document.getElementById('logContainer');
-        
-        // Status display elements
-        const motorState = document.getElementById('motorState');
-        const operationMode = document.getElementById('operationMode');
-        const timeRemaining = document.getElementById('timeRemaining');
-        const nextRun = document.getElementById('nextRun');
-        const lastUpdate = document.getElementById('lastUpdate');
-        
-        // Connection form elements
-        const brokerUrl = document.getElementById('brokerUrl');
-        const brokerPort = document.getElementById('brokerPort');
-        const clientId = document.getElementById('clientId');
-        const username = document.getElementById('username');
-        const password = document.getElementById('password');
-        const manualCommand = document.getElementById('manualCommand');
-        
-        // Add log entry to the log container
-        function addLog(message, type = 'info') {
-            const now = new Date();
-            const timeString = `[${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}]`;
-            
-            const logEntry = document.createElement('div');
-            logEntry.className = 'log-entry';
-            logEntry.innerHTML = `<span class="log-time">${timeString}</span> <span class="log-${type}">${message}</span>`;
-            
-            logContainer.appendChild(logEntry);
-            logContainer.scrollTop = logContainer.scrollHeight;
-        }
-        
-        // Update connection status UI
-        function updateConnectionStatus(connected) {
-            isConnected = connected;
-            
-            if (connected) {
-                connectionIndicator.className = 'status-indicator connected';
-                connectionStatus.textContent = 'Connected to MQTT broker';
-                connectBtn.disabled = true;
-                disconnectBtn.disabled = false;
-                startBtn.disabled = false;
-                stopBtn.disabled = false;
-                autoBtn.disabled = false;
-                emergencyBtn.disabled = false;
-                sendCommandBtn.disabled = false;
-            } else {
-                connectionIndicator.className = 'status-indicator disconnected';
-                connectionStatus.textContent = 'Disconnected from MQTT broker';
-                connectBtn.disabled = false;
-                disconnectBtn.disabled = true;
-                startBtn.disabled = true;
-                stopBtn.disabled = true;
-                autoBtn.disabled = true;
-                emergencyBtn.disabled = true;
-                sendCommandBtn.disabled = true;
+        // Function to load MQTT library with multiple fallbacks
+        function loadMQTTLibrary() {
+            return new Promise((resolve, reject) => {
+                // Try loading from different CDNs
+                const sources = [
+                    'https://unpkg.com/paho-mqtt@1.1.0/paho-mqtt.js',
+                    'https://cdn.jsdelivr.net/npm/paho-mqtt@1.1.0/paho-mqtt.js',
+                    'https://cdnjs.cloudflare.com/ajax/libs/paho-mqtt/1.1.0/paho-mqtt.min.js'
+                ];
                 
-                // Reset status displays
-                motorState.textContent = '-';
-                operationMode.textContent = '-';
-                timeRemaining.textContent = '-';
-                nextRun.textContent = '-';
-                lastUpdate.textContent = '-';
-            }
-        }
-        
-        // Connect to MQTT broker
-        function connectToBroker() {
-            const url = brokerUrl.value;
-            const port = parseInt(brokerPort.value);
-            const id = clientId.value || 'web-motor-control-' + Math.random().toString(16).substr(2, 8);
-            
-            addLog(`Connecting to ${url}:${port}...`);
-            
-            try {
-                client = new Paho.MQTT.Client(url, port, id);
+                let currentSource = 0;
                 
-                // Set callback handlers
-                client.onConnectionLost = onConnectionLost;
-                client.onMessageArrived = onMessageArrived;
-                
-                // Connect options
-                const options = {
-                    timeout: 3,
-                    onSuccess: onConnect,
-                    onFailure: onConnectFailure,
-                    useSSL: true
-                };
-                
-                // Add username and password if provided
-                if (username.value) {
-                    options.userName = username.value;
+                function tryLoad() {
+                    if (currentSource >= sources.length) {
+                        reject(new Error('All MQTT library sources failed to load'));
+                        return;
+                    }
+                    
+                    const script = document.createElement('script');
+                    script.src = sources[currentSource];
+                    script.onload = () => {
+                        console.log('MQTT library loaded from:', sources[currentSource]);
+                        resolve();
+                    };
+                    script.onerror = () => {
+                        currentSource++;
+                        tryLoad();
+                    };
+                    
+                    document.head.appendChild(script);
                 }
                 
-                if (password.value) {
-                    options.password = password.value;
-                }
+                tryLoad();
+            });
+        }
+        
+        // Initialize application after library loads
+        loadMQTTLibrary().then(() => {
+            initApplication();
+        }).catch(error => {
+            console.error('Failed to load MQTT library:', error);
+            // Provide fallback or error message
+            const logContainer = document.getElementById('logContainer');
+            const errorEntry = document.createElement('div');
+            errorEntry.className = 'log-entry';
+            errorEntry.innerHTML = '<span class="log-time">[00:00:00]</span> <span class="log-error">Error: MQTT library failed to load. Please check your internet connection.</span>';
+            logContainer.appendChild(errorEntry);
+        });
+        
+        function initApplication() {
+            // MQTT Client variables
+            let client = null;
+            let isConnected = false;
+            
+            // DOM Elements
+            const connectionIndicator = document.getElementById('connectionIndicator');
+            const connectionStatus = document.getElementById('connectionStatus');
+            const connectBtn = document.getElementById('connectBtn');
+            const disconnectBtn = document.getElementById('disconnectBtn');
+            const startBtn = document.getElementById('startBtn');
+            const stopBtn = document.getElementById('stopBtn');
+            const autoBtn = document.getElementById('autoBtn');
+            const emergencyBtn = document.getElementById('emergencyBtn');
+            const sendCommandBtn = document.getElementById('sendCommandBtn');
+            const logContainer = document.getElementById('logContainer');
+            
+            // Status display elements
+            const motorState = document.getElementById('motorState');
+            const operationMode = document.getElementById('operationMode');
+            const timeRemaining = document.getElementById('timeRemaining');
+            const nextRun = document.getElementById('nextRun');
+            const lastUpdate = document.getElementById('lastUpdate');
+            
+            // Connection form elements
+            const brokerUrl = document.getElementById('brokerUrl');
+            const brokerPort = document.getElementById('brokerPort');
+            const clientId = document.getElementById('clientId');
+            const username = document.getElementById('username');
+            const password = document.getElementById('password');
+            const manualCommand = document.getElementById('manualCommand');
+            
+            // Add log entry to the log container
+            function addLog(message, type = 'info') {
+                const now = new Date();
+                const timeString = `[${now.getHours().toString().padStart(2, '0')}:${now.getMinutes().toString().padStart(2, '0')}:${now.getSeconds().toString().padStart(2, '0')}]`;
                 
-                // Connect the client
-                client.connect(options);
-            } catch (error) {
-                addLog(`Connection error: ${error.message}`, 'error');
-            }
-        }
-        
-        // Connection success callback
-        function onConnect() {
-            addLog('Successfully connected to MQTT broker', 'info');
-            updateConnectionStatus(true);
-            
-            // Subscribe to motor status topic
-            client.subscribe('motor/status');
-            client.subscribe('motor/events');
-            addLog('Subscribed to motor/status and motor/events topics');
-            
-            // Request current status
-            publishMessage('motor/control', 'status');
-        }
-        
-        // Connection failure callback
-        function onConnectFailure(error) {
-            addLog(`Connection failed: ${error.errorMessage}`, 'error');
-            updateConnectionStatus(false);
-        }
-        
-        // Connection lost callback
-        function onConnectionLost(response) {
-            if (response.errorCode !== 0) {
-                addLog(`Connection lost: ${response.errorMessage}`, 'error');
-            }
-            updateConnectionStatus(false);
-        }
-        
-        // Message arrived callback
-        function onMessageArrived(message) {
-            addLog(`Message received on topic: ${message.destinationName}`, 'info');
-            
-            try {
-                const payload = JSON.parse(message.payloadString);
+                const logEntry = document.createElement('div');
+                logEntry.className = 'log-entry';
+                logEntry.innerHTML = `<span class="log-time">${timeString}</span> <span class="log-${type}">${message}</span>`;
                 
-                if (message.destinationName === 'motor/status') {
-                    updateStatusDisplay(payload);
-                } else if (message.destinationName === 'motor/events') {
-                    addLog(`Event: ${payload.event}`, 'info');
+                logContainer.appendChild(logEntry);
+                logContainer.scrollTop = logContainer.scrollHeight;
+            }
+            
+            // Update connection status UI
+            function updateConnectionStatus(connected) {
+                isConnected = connected;
+                
+                if (connected) {
+                    connectionIndicator.className = 'status-indicator connected';
+                    connectionStatus.textContent = 'Connected to MQTT broker';
+                    connectBtn.disabled = true;
+                    disconnectBtn.disabled = false;
+                    startBtn.disabled = false;
+                    stopBtn.disabled = false;
+                    autoBtn.disabled = false;
+                    emergencyBtn.disabled = false;
+                    sendCommandBtn.disabled = false;
+                } else {
+                    connectionIndicator.className = 'status-indicator disconnected';
+                    connectionStatus.textContent = 'Disconnected from MQTT broker';
+                    connectBtn.disabled = false;
+                    disconnectBtn.disabled = true;
+                    startBtn.disabled = true;
+                    stopBtn.disabled = true;
+                    autoBtn.disabled = true;
+                    emergencyBtn.disabled = true;
+                    sendCommandBtn.disabled = true;
+                    
+                    // Reset status displays
+                    motorState.textContent = '-';
+                    operationMode.textContent = '-';
+                    timeRemaining.textContent = '-';
+                    nextRun.textContent = '-';
+                    lastUpdate.textContent = '-';
                 }
-            } catch (error) {
-                addLog(`Error parsing message: ${error.message}`, 'error');
-                addLog(`Raw message: ${message.payloadString}`, 'info');
-            }
-        }
-        
-        // Update the status display with new data
-        function updateStatusDisplay(data) {
-            if (data.status) {
-                motorState.textContent = data.status.toUpperCase();
-                motorState.className = `status-value ${data.status === 'running' ? 'status-running' : 'status-stopped'}`;
             }
             
-            if (data.mode) {
-                operationMode.textContent = data.mode.toUpperCase();
-                operationMode.className = `status-value ${data.mode === 'auto' ? 'status-auto' : 'status-manual'}`;
+            // Connect to MQTT broker
+            function connectToBroker() {
+                const url = brokerUrl.value;
+                const port = parseInt(brokerPort.value);
+                const id = clientId.value || 'web-motor-control-' + Math.random().toString(16).substr(2, 8);
+                
+                addLog(`Connecting to ${url}:${port}...`);
+                
+                try {
+                    // Check if Paho MQTT is available
+                    if (typeof Paho === 'undefined' || typeof Paho.MQTT === 'undefined') {
+                        addLog('Error: MQTT library not properly loaded', 'error');
+                        return;
+                    }
+                    
+                    client = new Paho.MQTT.Client(url, port, id);
+                    
+                    // Set callback handlers
+                    client.onConnectionLost = onConnectionLost;
+                    client.onMessageArrived = onMessageArrived;
+                    
+                    // Connect options
+                    const options = {
+                        timeout: 3,
+                        onSuccess: onConnect,
+                        onFailure: onConnectFailure,
+                        useSSL: true,
+                        reconnect: true
+                    };
+                    
+                    // Add username and password if provided
+                    if (username.value) {
+                        options.userName = username.value;
+                    }
+                    
+                    if (password.value) {
+                        options.password = password.value;
+                    }
+                    
+                    // Connect the client
+                    client.connect(options);
+                } catch (error) {
+                    addLog(`Connection error: ${error.message}`, 'error');
+                }
             }
             
-            if (data.time_remaining !== undefined) {
-                timeRemaining.textContent = `${data.time_remaining} seconds`;
-            } else {
-                timeRemaining.textContent = 'Not running';
+            // Connection success callback
+            function onConnect() {
+                addLog('Successfully connected to MQTT broker', 'info');
+                updateConnectionStatus(true);
+                
+                // Subscribe to motor status topic
+                client.subscribe('motor/status');
+                client.subscribe('motor/events');
+                addLog('Subscribed to motor/status and motor/events topics');
+                
+                // Request current status
+                publishMessage('motor/control', 'status');
             }
             
-            if (data.next_run) {
-                nextRun.textContent = data.next_run;
-            }
-            
-            if (data.time) {
-                lastUpdate.textContent = data.time;
-            }
-        }
-        
-        // Publish a message to a topic
-        function publishMessage(topic, message) {
-            if (!isConnected || !client) {
-                addLog('Not connected to broker. Cannot publish message.', 'error');
-                return;
-            }
-            
-            const messageObj = new Paho.MQTT.Message(message);
-            messageObj.destinationName = topic;
-            
-            try {
-                client.send(messageObj);
-                addLog(`Message published to ${topic}: ${message}`, 'info');
-            } catch (error) {
-                addLog(`Error publishing message: ${error.message}`, 'error');
-            }
-        }
-        
-        // Event listeners
-        connectBtn.addEventListener('click', connectToBroker);
-        
-        disconnectBtn.addEventListener('click', function() {
-            if (client && isConnected) {
-                client.disconnect();
-                addLog('Disconnected from MQTT broker', 'info');
+            // Connection failure callback
+            function onConnectFailure(error) {
+                addLog(`Connection failed: ${error.errorMessage}`, 'error');
                 updateConnectionStatus(false);
             }
-        });
-        
-        startBtn.addEventListener('click', function() {
-            publishMessage('motor/control', 'on');
-        });
-        
-        stopBtn.addEventListener('click', function() {
-            publishMessage('motor/control', 'off');
-        });
-        
-        autoBtn.addEventListener('click', function() {
-            publishMessage('motor/control', 'auto');
-        });
-        
-        emergencyBtn.addEventListener('click', function() {
-            publishMessage('motor/control', 'emergency');
-        });
-        
-        sendCommandBtn.addEventListener('click', function() {
-            const command = manualCommand.value.trim();
-            if (command) {
-                publishMessage('motor/control', command);
-                manualCommand.value = '';
+            
+            // Connection lost callback
+            function onConnectionLost(response) {
+                if (response.errorCode !== 0) {
+                    addLog(`Connection lost: ${response.errorMessage}`, 'error');
+                }
+                updateConnectionStatus(false);
             }
-        });
-        
-        manualCommand.addEventListener('keypress', function(e) {
-            if (e.key === 'Enter') {
-                sendCommandBtn.click();
+            
+            // Message arrived callback
+            function onMessageArrived(message) {
+                addLog(`Message received on topic: ${message.destinationName}`, 'info');
+                
+                try {
+                    const payload = JSON.parse(message.payloadString);
+                    
+                    if (message.destinationName === 'motor/status') {
+                        updateStatusDisplay(payload);
+                    } else if (message.destinationName === 'motor/events') {
+                        addLog(`Event: ${payload.event}`, 'info');
+                    }
+                } catch (error) {
+                    addLog(`Error parsing message: ${error.message}`, 'error');
+                    addLog(`Raw message: ${message.payloadString}`, 'info');
+                }
             }
-        });
-        
-        // Initialize the UI
-        updateConnectionStatus(false);
-        
-        // Add sample broker credentials for demonstration (remove in production)
-        username.value = 'emqx_username';
-        password.value = 'emqx_password';
-        
-        addLog('Dashboard initialized. Please enter your MQTT credentials and click Connect.', 'info');
+            
+            // Update the status display with new data
+            function updateStatusDisplay(data) {
+                if (data.status) {
+                    motorState.textContent = data.status.toUpperCase();
+                    motorState.className = `status-value ${data.status === 'running' ? 'status-running' : 'status-stopped'}`;
+                }
+                
+                if (data.mode) {
+                    operationMode.textContent = data.mode.toUpperCase();
+                    operationMode.className = `status-value ${data.mode === 'auto' ? 'status-auto' : 'status-manual'}`;
+                }
+                
+                if (data.time_remaining !== undefined) {
+                    timeRemaining.textContent = `${data.time_remaining} seconds`;
+                } else {
+                    timeRemaining.textContent = 'Not running';
+                }
+                
+                if (data.next_run) {
+                    nextRun.textContent = data.next_run;
+                }
+                
+                if (data.time) {
+                    lastUpdate.textContent = data.time;
+                }
+            }
+            
+            // Publish a message to a topic
+            function publishMessage(topic, message) {
+                if (!isConnected || !client) {
+                    addLog('Not connected to broker. Cannot publish message.', 'error');
+                    return;
+                }
+                
+                const messageObj = new Paho.MQTT.Message(message);
+                messageObj.destinationName = topic;
+                
+                try {
+                    client.send(messageObj);
+                    addLog(`Message published to ${topic}: ${message}`, 'info');
+                } catch (error) {
+                    addLog(`Error publishing message: ${error.message}`, 'error');
+                }
+            }
+            
+            // Event listeners
+            connectBtn.addEventListener('click', connectToBroker);
+            
+            disconnectBtn.addEventListener('click', function() {
+                if (client && isConnected) {
+                    client.disconnect();
+                    addLog('Disconnected from MQTT broker', 'info');
+                    updateConnectionStatus(false);
+                }
+            });
+            
+            startBtn.addEventListener('click', function() {
+                publishMessage('motor/control', 'on');
+            });
+            
+            stopBtn.addEventListener('click', function() {
+                publishMessage('motor/control', 'off');
+            });
+            
+            autoBtn.addEventListener('click', function() {
+                publishMessage('motor/control', 'auto');
+            });
+            
+            emergencyBtn.addEventListener('click', function() {
+                publishMessage('motor/control', 'emergency');
+            });
+            
+            sendCommandBtn.addEventListener('click', function() {
+                const command = manualCommand.value.trim();
+                if (command) {
+                    publishMessage('motor/control', command);
+                    manualCommand.value = '';
+                }
+            });
+            
+            manualCommand.addEventListener('keypress', function(e) {
+                if (e.key === 'Enter') {
+                    sendCommandBtn.click();
+                }
+            });
+            
+            // Initialize the UI
+            updateConnectionStatus(false);
+            addLog('Dashboard initialized. Please enter your MQTT credentials and click Connect.', 'info');
+        }
     </script>
 </body>
 </html>
