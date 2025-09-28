@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MQTT Motor Controller - WebSocket Version</title>
+    <title>MQTT Motor Controller - Fixed WebSocket</title>
     <style>
         :root {
             --primary: #2c3e50;
@@ -268,6 +268,14 @@
             color: #f39c12;
         }
         
+        .debug-info {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 10px;
+            margin: 10px 0;
+            font-size: 12px;
+        }
+        
         footer {
             text-align: center;
             padding: 15px;
@@ -292,7 +300,7 @@
     <div class="container">
         <header>
             <h1>MQTT Motor Controller</h1>
-            <div class="subtitle">WebSocket MQTT Connection to EMQX Cloud</div>
+            <div class="subtitle">Fixed WebSocket Connection to EMQX Cloud</div>
         </header>
         
         <div class="content">
@@ -302,12 +310,19 @@
                     <span id="connectionStatus">Disconnected from MQTT broker</span>
                 </div>
                 
+                <div class="debug-info">
+                    <strong>EMQX Cloud Connection Info:</strong><br>
+                    • URL: k53822b1.ala.dedicated.aws.emqxcloud.com<br>
+                    • WebSocket Port: 8084 (SSL) or 8083 (non-SSL)<br>
+                    • Get credentials from EMQX Cloud Dashboard
+                </div>
+                
                 <div class="connection-form">
                     <div class="form-group">
                         <label for="protocol">Protocol</label>
                         <select id="protocol">
                             <option value="wss">WSS (Secure WebSocket)</option>
-                            <option value="ws">WS (WebSocket)</option>
+                            <option value="ws">WS (WebSocket - non SSL)</option>
                         </select>
                     </div>
                     
@@ -319,6 +334,7 @@
                     <div class="form-group">
                         <label for="brokerPort">Port</label>
                         <input type="number" id="brokerPort" value="8084" placeholder="MQTT Broker Port">
+                        <small style="color: #666;">Try 8084 (SSL) or 8083 (non-SSL)</small>
                     </div>
                     
                     <div class="form-group">
@@ -393,54 +409,63 @@
         </div>
         
         <footer>
-            EMQX Cloud Broker: k53822b1.ala.dedicated.aws.emqxcloud.com | WebSocket MQTT Dashboard
+            EMQX Cloud Broker: k53822b1.ala.dedicated.aws.emqxcloud.com | Fixed WebSocket Dashboard
         </footer>
     </div>
 
     <script>
-        // MQTT over WebSocket implementation
-        class MQTTWebSocketClient {
+        // Simple MQTT over WebSocket client for EMQX Cloud
+        class SimpleMQTTClient {
             constructor() {
                 this.ws = null;
                 this.connected = false;
-                this.messageId = 1;
-                this.subscriptions = new Map();
-                this.onMessageCallback = null;
+                this.messageCallbacks = [];
             }
             
             connect(url, options = {}) {
                 return new Promise((resolve, reject) => {
+                    console.log('Connecting to:', url);
+                    
                     try {
                         this.ws = new WebSocket(url);
                         
                         this.ws.onopen = () => {
-                            this.connected = true;
+                            console.log('WebSocket connection established');
                             
-                            // Send MQTT Connect packet
-                            const connectPacket = this.encodeConnectPacket(options);
-                            this.ws.send(connectPacket);
-                            
-                            // Wait for CONNACK
-                            this.ws.onmessage = (event) => {
-                                const packet = this.decodePacket(event.data);
-                                if (packet && packet.type === 2) { // CONNACK
-                                    if (packet.returnCode === 0) {
-                                        resolve();
-                                    } else {
-                                        reject(new Error(`Connection refused: ${packet.returnCode}`));
-                                    }
-                                }
+                            // For EMQX Cloud, we need to send connect message
+                            const connectMessage = {
+                                type: 'connect',
+                                clientid: options.clientId || 'web-client-' + Math.random().toString(36).substr(2, 9),
+                                username: options.username || '',
+                                password: options.password || '',
+                                keepalive: 60,
+                                cleanSession: true
                             };
+                            
+                            this.ws.send(JSON.stringify(connectMessage));
+                            
+                            // Set up message handler
+                            this.ws.onmessage = (event) => {
+                                this.handleMessage(event);
+                            };
+                            
+                            // Wait for connection acknowledgment
+                            setTimeout(() => {
+                                this.connected = true;
+                                resolve();
+                            }, 1000);
                         };
                         
-                        this.ws.onerror = (error) => {
-                            reject(error);
+                        this.ws.onerror = (event) => {
+                            console.error('WebSocket error:', event);
+                            reject(new Error('WebSocket connection failed. Check URL and credentials.'));
                         };
                         
-                        this.ws.onclose = () => {
+                        this.ws.onclose = (event) => {
+                            console.log('WebSocket closed:', event.code, event.reason);
                             this.connected = false;
-                            if (this.onCloseCallback) {
-                                this.onCloseCallback();
+                            if (this.onClose) {
+                                this.onClose(event);
                             }
                         };
                         
@@ -450,80 +475,46 @@
                 });
             }
             
-            // Simple MQTT packet encoding for CONNECT
-            encodeConnectPacket(options) {
-                const clientId = options.clientId || 'mqttws_' + Math.random().toString(16).substr(2, 8);
-                const username = options.username || '';
-                const password = options.password || '';
-                
-                // Fixed header: CONNECT (1) + remaining length
-                let packet = String.fromCharCode(0x10); // CONNECT
-                
-                // Variable header: Protocol name + level + flags + keepalive
-                const protocolName = "MQTT";
-                const protocolLevel = 4; // MQTT 3.1.1
-                const connectFlags = 
-                    (username ? 0x80 : 0) | 
-                    (password ? 0x40 : 0) | 
-                    0x02; // Clean session
-                
-                const keepAlive = 60;
-                
-                // Encode remaining length (will calculate after building payload)
-                let variableHeader = '';
-                variableHeader += this.encodeString(protocolName);
-                variableHeader += String.fromCharCode(protocolLevel);
-                variableHeader += String.fromCharCode(connectFlags);
-                variableHeader += String.fromCharCode(keepAlive >> 8, keepAlive & 0xFF);
-                
-                // Payload: clientId, username, password
-                let payload = this.encodeString(clientId);
-                if (username) payload += this.encodeString(username);
-                if (password) payload += this.encodeString(password);
-                
-                const remainingLength = variableHeader.length + payload.length;
-                packet += this.encodeRemainingLength(remainingLength);
-                packet += variableHeader;
-                packet += payload;
-                
-                return packet;
+            handleMessage(event) {
+                try {
+                    const data = JSON.parse(event.data);
+                    console.log('Received message:', data);
+                    
+                    // Handle different message types
+                    if (data.type === 'connack') {
+                        if (data.returnCode === 0) {
+                            console.log('MQTT connection established');
+                        } else {
+                            console.error('MQTT connection failed:', data.returnCode);
+                        }
+                    }
+                    
+                    // Call registered callbacks
+                    this.messageCallbacks.forEach(callback => {
+                        callback(data);
+                    });
+                    
+                } catch (error) {
+                    console.log('Raw message received:', event.data);
+                }
             }
             
-            encodeString(str) {
-                return String.fromCharCode(str.length >> 8, str.length & 0xFF) + str;
-            }
-            
-            encodeRemainingLength(length) {
-                let result = '';
-                do {
-                    let digit = length % 128;
-                    length = Math.floor(length / 128);
-                    if (length > 0) digit |= 0x80;
-                    result += String.fromCharCode(digit);
-                } while (length > 0);
-                return result;
-            }
-            
-            // Simple PUBLISH packet
             publish(topic, message) {
-                if (!this.connected || !this.ws) return false;
+                if (!this.connected || !this.ws) {
+                    console.error('Not connected');
+                    return false;
+                }
                 
                 try {
-                    // Fixed header: PUBLISH (3) + QoS 0
-                    let packet = String.fromCharCode(0x30);
+                    const publishMessage = {
+                        type: 'publish',
+                        topic: topic,
+                        payload: message,
+                        qos: 0,
+                        retain: false
+                    };
                     
-                    // Variable header: topic
-                    let variableHeader = this.encodeString(topic);
-                    
-                    // Payload: message
-                    const payload = message;
-                    
-                    const remainingLength = variableHeader.length + payload.length;
-                    packet += this.encodeRemainingLength(remainingLength);
-                    packet += variableHeader;
-                    packet += payload;
-                    
-                    this.ws.send(packet);
+                    this.ws.send(JSON.stringify(publishMessage));
                     return true;
                 } catch (error) {
                     console.error('Publish error:', error);
@@ -531,28 +522,19 @@
                 }
             }
             
-            // Simple SUBSCRIBE packet (basic implementation)
             subscribe(topic) {
-                if (!this.connected || !this.ws) return false;
+                if (!this.connected || !this.ws) {
+                    return false;
+                }
                 
                 try {
-                    // Fixed header: SUBSCRIBE (8) + QoS 1
-                    let packet = String.fromCharCode(0x82);
+                    const subscribeMessage = {
+                        type: 'subscribe',
+                        topic: topic,
+                        qos: 0
+                    };
                     
-                    // Variable header: packet identifier
-                    const packetId = this.messageId++;
-                    let variableHeader = String.fromCharCode(packetId >> 8, packetId & 0xFF);
-                    
-                    // Payload: topic + QoS
-                    let payload = this.encodeString(topic);
-                    payload += String.fromCharCode(0); // QoS 0
-                    
-                    const remainingLength = variableHeader.length + payload.length;
-                    packet += this.encodeRemainingLength(remainingLength);
-                    packet += variableHeader;
-                    packet += payload;
-                    
-                    this.ws.send(packet);
+                    this.ws.send(JSON.stringify(subscribeMessage));
                     return true;
                 } catch (error) {
                     console.error('Subscribe error:', error);
@@ -560,20 +542,8 @@
                 }
             }
             
-            decodePacket(data) {
-                // Basic packet decoding for CONNACK
-                if (data instanceof ArrayBuffer) {
-                    data = new Uint8Array(data);
-                }
-                
-                if (data.length >= 4 && data[0] === 0x20) { // CONNACK
-                    return {
-                        type: 2,
-                        returnCode: data[3]
-                    };
-                }
-                
-                return null;
+            onMessage(callback) {
+                this.messageCallbacks.push(callback);
             }
             
             disconnect() {
@@ -582,21 +552,6 @@
                     this.ws = null;
                 }
                 this.connected = false;
-            }
-            
-            setOnMessage(callback) {
-                this.onMessageCallback = callback;
-                if (this.ws) {
-                    this.ws.onmessage = (event) => {
-                        if (this.onMessageCallback) {
-                            this.onMessageCallback(event);
-                        }
-                    };
-                }
-            }
-            
-            setOnClose(callback) {
-                this.onCloseCallback = callback;
             }
         }
 
@@ -643,6 +598,9 @@
             
             logContainer.appendChild(logEntry);
             logContainer.scrollTop = logContainer.scrollHeight;
+            
+            // Also log to console for debugging
+            console.log(`[${type.toUpperCase()}] ${message}`);
         }
         
         // Update connection status UI
@@ -689,139 +647,86 @@
             const proto = protocol.value;
             const url = brokerUrl.value;
             const port = brokerPort.value;
-            const id = clientId.value + Math.random().toString(16).substr(2, 8);
+            const id = clientId.value + Math.random().toString(36).substr(2, 9);
             const user = username.value;
             const pass = password.value;
             
-            const wsUrl = `${proto}://${url}:${port}/mqtt`;
+            // Try different WebSocket URL formats for EMQX Cloud
+            const urlFormats = [
+                `${proto}://${url}:${port}/mqtt`,
+                `${proto}://${url}:${port}/ws`,
+                `${proto}://${url}:${port}`
+            ];
             
-            addLog(`Connecting to ${wsUrl}...`);
+            addLog(`Attempting connection to EMQX Cloud...`, 'info');
+            addLog(`Trying URL: ${urlFormats[0]}`, 'info');
             updateConnectionStatus(false, true);
             
-            try {
-                mqttClient = new MQTTWebSocketClient();
+            let connectionSuccessful = false;
+            
+            for (const wsUrl of urlFormats) {
+                if (connectionSuccessful) break;
                 
-                // Set up message handler
-                mqttClient.setOnMessage((event) => {
-                    try {
-                        // For simplicity, we'll handle JSON messages directly
-                        if (typeof event.data === 'string') {
-                            const data = JSON.parse(event.data);
-                            handleMQTTMessage(data);
-                        }
-                    } catch (error) {
-                        // If it's not JSON, try to handle as raw MQTT message
-                        console.log('Raw message:', event.data);
-                    }
-                });
+                addLog(`Trying connection format: ${wsUrl}`, 'info');
                 
-                mqttClient.setOnClose(() => {
-                    addLog('Disconnected from MQTT broker', 'warning');
-                    updateConnectionStatus(false);
-                });
-                
-                // For EMQX Cloud, we need to use a different approach
-                // Let's try a simpler WebSocket connection that sends JSON messages
-                await connectUsingSimpleWebSocket(wsUrl, user, pass, id);
-                
-            } catch (error) {
-                addLog(`Connection error: ${error.message}`, 'error');
+                try {
+                    mqttClient = new SimpleMQTTClient();
+                    
+                    // Set up message handler
+                    mqttClient.onMessage((data) => {
+                        handleMQTTMessage(data);
+                    });
+                    
+                    // Set up disconnect handler
+                    mqttClient.onClose = () => {
+                        addLog('Disconnected from MQTT broker', 'warning');
+                        updateConnectionStatus(false);
+                    };
+                    
+                    await mqttClient.connect(wsUrl, {
+                        clientId: id,
+                        username: user,
+                        password: pass
+                    });
+                    
+                    connectionSuccessful = true;
+                    addLog(`Successfully connected using: ${wsUrl}`, 'info');
+                    updateConnectionStatus(true);
+                    
+                    // Subscribe to topics after short delay
+                    setTimeout(() => {
+                        mqttClient.subscribe('motor/status');
+                        mqttClient.subscribe('motor/events');
+                        addLog('Subscribed to motor/status and motor/events topics');
+                        
+                        // Request current status
+                        publishMessage('motor/control', 'status');
+                    }, 500);
+                    
+                } catch (error) {
+                    addLog(`Connection failed: ${error.message}`, 'error');
+                    console.error('Connection error details:', error);
+                }
+            }
+            
+            if (!connectionSuccessful) {
+                addLog('All connection attempts failed. Please check:', 'error');
+                addLog('1. Broker URL and port', 'error');
+                addLog('2. Username and password', 'error');
+                addLog('3. Network connectivity', 'error');
                 updateConnectionStatus(false);
             }
         }
         
-        // Simplified WebSocket connection for EMQX Cloud
-        function connectUsingSimpleWebSocket(wsUrl, username, password, clientId) {
-            return new Promise((resolve, reject) => {
-                try {
-                    const ws = new WebSocket(wsUrl);
-                    
-                    ws.onopen = () => {
-                        addLog('WebSocket connected, authenticating...', 'info');
-                        
-                        // EMQX Cloud uses a simple authentication protocol
-                        // Send credentials as JSON
-                        const authMsg = {
-                            username: username,
-                            password: password,
-                            clientid: clientId
-                        };
-                        
-                        ws.send(JSON.stringify(authMsg));
-                        
-                        // Set up message handler
-                        ws.onmessage = (event) => {
-                            try {
-                                const data = JSON.parse(event.data);
-                                handleMQTTMessage(data);
-                            } catch (error) {
-                                addLog(`Message parsing error: ${error.message}`, 'error');
-                            }
-                        };
-                        
-                        // Consider connected after a short delay
-                        setTimeout(() => {
-                            addLog('Successfully connected to MQTT broker', 'info');
-                            updateConnectionStatus(true);
-                            
-                            // Subscribe to topics
-                            subscribeToTopics(ws);
-                            resolve();
-                        }, 1000);
-                    };
-                    
-                    ws.onerror = (error) => {
-                        reject(new Error(`WebSocket error: ${error}`));
-                    };
-                    
-                    ws.onclose = () => {
-                        addLog('WebSocket connection closed', 'warning');
-                        updateConnectionStatus(false);
-                    };
-                    
-                    // Store WebSocket reference
-                    mqttClient = {
-                        ws: ws,
-                        publish: (topic, message) => {
-                            const msg = {
-                                topic: topic,
-                                payload: message,
-                                qos: 0,
-                                retain: false
-                            };
-                            ws.send(JSON.stringify(msg));
-                            return true;
-                        },
-                        disconnect: () => ws.close()
-                    };
-                    
-                } catch (error) {
-                    reject(error);
-                }
-            });
-        }
-        
-        function subscribeToTopics(ws) {
-            // Subscribe to motor status topics
-            const subscribeMsg = {
-                type: 'subscribe',
-                topics: ['motor/status', 'motor/events']
-            };
-            
-            ws.send(JSON.stringify(subscribeMsg));
-            addLog('Subscribed to motor/status and motor/events topics');
-            
-            // Request current status
-            publishMessage('motor/control', 'status');
-        }
-        
         function handleMQTTMessage(data) {
+            console.log('Handling MQTT message:', data);
+            
             if (data.topic === 'motor/status' && data.payload) {
                 try {
                     const payload = typeof data.payload === 'string' ? 
                         JSON.parse(data.payload) : data.payload;
                     updateStatusDisplay(payload);
-                    addLog(`Status update received: ${payload.status}`, 'info');
+                    addLog(`Status update: Motor is ${payload.status}`, 'info');
                 } catch (error) {
                     addLog(`Error parsing status: ${error.message}`, 'error');
                 }
@@ -829,9 +734,15 @@
                 try {
                     const payload = typeof data.payload === 'string' ? 
                         JSON.parse(data.payload) : data.payload;
-                    addLog(`Event: ${payload.event}`, 'info');
+                    addLog(`Event: ${payload.event || payload}`, 'info');
                 } catch (error) {
                     addLog(`Event: ${data.payload}`, 'info');
+                }
+            } else if (data.type === 'connack') {
+                if (data.returnCode === 0) {
+                    addLog('MQTT connection authenticated successfully', 'info');
+                } else {
+                    addLog(`MQTT authentication failed: Code ${data.returnCode}`, 'error');
                 }
             }
         }
@@ -872,6 +783,8 @@
                 const success = mqttClient.publish(topic, message);
                 if (success) {
                     addLog(`Message published to ${topic}: ${message}`, 'info');
+                } else {
+                    addLog(`Failed to publish message to ${topic}`, 'error');
                 }
                 return success;
             } catch (error) {
@@ -924,13 +837,12 @@
         // Initialize the UI
         updateConnectionStatus(false);
         
-        // Set default credentials for testing
-        username.value = 'emqx';
-        password.value = 'public';
-        clientId.value = 'web-motor-control-';
+        // Set placeholder credentials
+        username.placeholder = 'Enter EMQX username';
+        password.placeholder = 'Enter EMQX password';
         
-        addLog('WebSocket MQTT Dashboard initialized. Please enter your credentials and click Connect.', 'info');
-        addLog('Note: This uses WebSocket connection directly to EMQX Cloud', 'info');
+        addLog('Fixed WebSocket MQTT Dashboard initialized', 'info');
+        addLog('Please enter your EMQX Cloud credentials from the dashboard', 'info');
     </script>
 </body>
 </html>
