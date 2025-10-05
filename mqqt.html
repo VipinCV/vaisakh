@@ -2,40 +2,241 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>MQTT.js Web Client</title>
-    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MQTT Publisher</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .container {
+            border: 1px solid #ccc;
+            padding: 20px;
+            border-radius: 5px;
+            margin-bottom: 20px;
+        }
+        input, textarea, button {
+            margin: 5px;
+            padding: 8px;
+        }
+        input[type="text"], textarea {
+            width: 300px;
+        }
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 10px 15px;
+            cursor: pointer;
+            border-radius: 4px;
+        }
+        button:hover {
+            background-color: #45a049;
+        }
+        button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .status {
+            padding: 10px;
+            margin: 10px 0;
+            border-radius: 4px;
+        }
+        .connected {
+            background-color: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .disconnected {
+            background-color: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        .message-log {
+            background-color: #f8f9fa;
+            border: 1px solid #e9ecef;
+            padding: 10px;
+            height: 200px;
+            overflow-y: auto;
+            margin-top: 10px;
+        }
+    </style>
 </head>
 <body>
-    <h1>MQTT.js Web Client</h1>
-    <div>
-        <input type="button" onclick="connectAndPublish()" value="Connect and Publish">
+    <h1>MQTT Publisher to HiveMQ</h1>
+    
+    <div class="container">
+        <h3>Connection Status</h3>
+        <div id="status" class="status disconnected">Disconnected</div>
+        <button onclick="connect()" id="connectBtn">Connect</button>
+        <button onclick="disconnect()" id="disconnectBtn" disabled>Disconnect</button>
     </div>
-    <div id="messages"></div>
 
-  <script>
-  // Connection options
-  const url = 'wss://c4d63ec2e5cb45dbb9b44734c53778d5.s1.eu.hivemq.cloud:8884/mqtt';//
-  const options = {
-    clean: true,
-    connectTimeout: 4000,
-    clientId: 'your_web_client_id',
-    username: 'vipin', // Get this from HiveMQ Cloud console
-    password: 'Vipin246880', // Get this from HiveMQ Cloud console
-  };
+    <div class="container">
+        <h3>Publish Message</h3>
+        <div>
+            <label>Topic:</label><br>
+            <input type="text" id="publishTopic" value="test/topic" placeholder="Enter topic">
+        </div>
+        <div>
+            <label>Message:</label><br>
+            <textarea id="publishMessage" rows="3" cols="50" placeholder="Enter your message"></textarea>
+        </div>
+        <button onclick="publishMessage()" id="publishBtn" disabled>Publish Message</button>
+    </div>
 
-  // Connect to the broker
-  const client = mqtt.connect(url, options);
+    <div class="container">
+        <h3>Subscribe to Topic</h3>
+        <div>
+            <label>Topic to subscribe:</label><br>
+            <input type="text" id="subscribeTopic" value="test/topic" placeholder="Enter topic to subscribe">
+            <button onclick="subscribeToTopic()" id="subscribeBtn" disabled>Subscribe</button>
+        </div>
+    </div>
 
-  client.on('connect', function () {
-    console.log('Connected to HiveMQ Cloud!');
-    // You can now subscribe to topics or publish messages here.
-    client.subscribe('my/topic');
-  });
+    <div class="container">
+        <h3>Message Log</h3>
+        <div id="messageLog" class="message-log"></div>
+    </div>
 
-  client.on('message', function (topic, message) {
-    // This function is called when a message is received.
-    console.log('Received message on %s: %s', topic, message.toString());
-  });
-</script>
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+    <script>
+        let client = null;
+        const statusElement = document.getElementById('status');
+        const messageLogElement = document.getElementById('messageLog');
+        const connectBtn = document.getElementById('connectBtn');
+        const disconnectBtn = document.getElementById('disconnectBtn');
+        const publishBtn = document.getElementById('publishBtn');
+        const subscribeBtn = document.getElementById('subscribeBtn');
+
+        function connect() {
+            // Replace these with your actual HiveMQ credentials
+            const url = 'wss://c4d63ec2e5cb45dbb9b44734c53778d5.s1.eu.hivemq.cloud:8884/mqtt';
+            const options = {
+                clean: true,
+                connectTimeout: 4000,
+                clientId: 'web_client_' + Math.random().toString(16).substr(2, 8),
+                username: 'vipin', // Replace with your username
+                password: 'Vipin246880', // Replace with your password
+            };
+
+            logMessage('Connecting to HiveMQ...');
+            
+            client = mqtt.connect(url, options);
+
+            client.on('connect', function () {
+                updateStatus('Connected to HiveMQ Cloud!', true);
+                logMessage('Successfully connected to broker');
+                publishBtn.disabled = false;
+                subscribeBtn.disabled = false;
+                connectBtn.disabled = true;
+                disconnectBtn.disabled = false;
+            });
+
+            client.on('message', function (topic, message) {
+                logMessage(`📨 Received on ${topic}: ${message.toString()}`);
+            });
+
+            client.on('error', function (error) {
+                logMessage(`❌ Connection error: ${error}`);
+                updateStatus('Connection failed', false);
+            });
+
+            client.on('close', function () {
+                updateStatus('Disconnected', false);
+                logMessage('Connection closed');
+            });
+        }
+
+        function disconnect() {
+            if (client) {
+                client.end();
+                client = null;
+                updateStatus('Disconnected', false);
+                publishBtn.disabled = true;
+                subscribeBtn.disabled = true;
+                connectBtn.disabled = false;
+                disconnectBtn.disabled = true;
+                logMessage('Disconnected from broker');
+            }
+        }
+
+        function publishMessage() {
+            if (!client || !client.connected) {
+                logMessage('❌ Not connected to broker');
+                return;
+            }
+
+            const topic = document.getElementById('publishTopic').value.trim();
+            const message = document.getElementById('publishMessage').value.trim();
+
+            if (!topic) {
+                logMessage('❌ Please enter a topic');
+                return;
+            }
+
+            if (!message) {
+                logMessage('❌ Please enter a message');
+                return;
+            }
+
+            client.publish(topic, message, (error) => {
+                if (error) {
+                    logMessage(`❌ Failed to publish: ${error}`);
+                } else {
+                    logMessage(`📤 Published to ${topic}: ${message}`);
+                    // Clear the message input after successful publish
+                    document.getElementById('publishMessage').value = '';
+                }
+            });
+        }
+
+        function subscribeToTopic() {
+            if (!client || !client.connected) {
+                logMessage('❌ Not connected to broker');
+                return;
+            }
+
+            const topic = document.getElementById('subscribeTopic').value.trim();
+            
+            if (!topic) {
+                logMessage('❌ Please enter a topic to subscribe');
+                return;
+            }
+
+            client.subscribe(topic, (error) => {
+                if (error) {
+                    logMessage(`❌ Failed to subscribe to ${topic}: ${error}`);
+                } else {
+                    logMessage(`✅ Subscribed to topic: ${topic}`);
+                }
+            });
+        }
+
+        function updateStatus(message, isConnected) {
+            statusElement.textContent = message;
+            statusElement.className = 'status ' + (isConnected ? 'connected' : 'disconnected');
+        }
+
+        function logMessage(message) {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.textContent = `[${timestamp}] ${message}`;
+            messageLogElement.appendChild(logEntry);
+            messageLogElement.scrollTop = messageLogElement.scrollHeight;
+        }
+
+        // Allow pressing Enter to publish
+        document.getElementById('publishMessage').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter' && e.ctrlKey) {
+                publishMessage();
+            }
+        });
+
+        // Demo credentials reminder
+        logMessage('⚠️ Remember to replace YOUR_HIVEMQ_USERNAME and YOUR_HIVEMQ_PASSWORD with your actual credentials!');
+    </script>
 </body>
 </html>
