@@ -3,46 +3,34 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MQTT Publisher</title>
+    <title>Motor Control via MQTT</title>
     <style>
         body {
-            font-family: Arial, sans-serif;
-            max-width: 800px;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            max-width: 900px;
             margin: 0 auto;
             padding: 20px;
+            background-color: #f5f7fa;
+            color: #333;
+        }
+        h1 {
+            text-align: center;
+            color: #2c3e50;
+            margin-bottom: 30px;
         }
         .container {
-            border: 1px solid #ccc;
+            background-color: white;
+            border-radius: 10px;
             padding: 20px;
-            border-radius: 5px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
             margin-bottom: 20px;
         }
-        input, textarea, button {
-            margin: 5px;
-            padding: 8px;
-        }
-        input[type="text"], textarea {
-            width: 300px;
-        }
-        button {
-            background-color: #4CAF50;
-            color: white;
-            border: none;
-            padding: 10px 15px;
-            cursor: pointer;
-            border-radius: 4px;
-        }
-        button:hover {
-            background-color: #45a049;
-        }
-        button:disabled {
-            background-color: #cccccc;
-            cursor: not-allowed;
-        }
         .status {
-            padding: 10px;
+            padding: 15px;
             margin: 10px 0;
-            border-radius: 4px;
+            border-radius: 8px;
+            font-weight: bold;
+            text-align: center;
         }
         .connected {
             background-color: #d4edda;
@@ -54,45 +42,199 @@
             color: #721c24;
             border: 1px solid #f5c6cb;
         }
+        .control-panel {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+        .motor-controls {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 20px;
+        }
+        .motor-btn {
+            padding: 15px 25px;
+            font-size: 18px;
+            border: none;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+        }
+        .motor-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+        .motor-btn:active {
+            transform: translateY(0);
+        }
+        .motor-btn:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        .forward {
+            background-color: #4CAF50;
+            color: white;
+        }
+        .backward {
+            background-color: #2196F3;
+            color: white;
+        }
+        .stop {
+            background-color: #f44336;
+            color: white;
+            width: 100%;
+            padding: 15px;
+            font-size: 20px;
+        }
+        .speed-control {
+            margin: 20px 0;
+            text-align: center;
+        }
+        .speed-slider {
+            width: 80%;
+            margin: 10px 0;
+        }
+        .connection-controls {
+            display: flex;
+            justify-content: center;
+            gap: 10px;
+            margin-top: 10px;
+        }
+        .connection-btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        .connect {
+            background-color: #4CAF50;
+            color: white;
+        }
+        .disconnect {
+            background-color: #f44336;
+            color: white;
+        }
         .message-log {
             background-color: #f8f9fa;
             border: 1px solid #e9ecef;
-            padding: 10px;
+            padding: 15px;
             height: 200px;
             overflow-y: auto;
             margin-top: 10px;
+            border-radius: 5px;
+            font-family: monospace;
+            font-size: 14px;
+        }
+        .log-entry {
+            margin-bottom: 5px;
+            padding: 5px;
+            border-radius: 3px;
+        }
+        .log-published {
+            background-color: #e8f5e9;
+        }
+        .log-received {
+            background-color: #e3f2fd;
+        }
+        .log-error {
+            background-color: #ffebee;
+            color: #c62828;
+        }
+        .log-info {
+            background-color: #fff3e0;
+        }
+        .topic-input {
+            display: flex;
+            gap: 10px;
+            margin: 15px 0;
+            align-items: center;
+        }
+        .topic-input input {
+            flex: 1;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .topic-input button {
+            padding: 8px 15px;
+            background-color: #6c757d;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .topic-input button:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        .motor-status {
+            text-align: center;
+            font-size: 18px;
+            margin: 15px 0;
+            padding: 10px;
+            border-radius: 5px;
+            background-color: #e3f2fd;
         }
     </style>
 </head>
 <body>
-    <h1>MQTT Publisher to HiveMQ</h1>
+    <h1>Motor Control via MQTT</h1>
     
     <div class="container">
         <h3>Connection Status</h3>
-        <div id="status" class="status disconnected">Disconnected</div>
-        <button onclick="connect()" id="connectBtn">Connect</button>
-        <button onclick="disconnect()" id="disconnectBtn" disabled>Disconnect</button>
+        <div id="status" class="status disconnected">Disconnected from MQTT Broker</div>
+        <div class="connection-controls">
+            <button onclick="connect()" id="connectBtn" class="connection-btn connect">Connect</button>
+            <button onclick="disconnect()" id="disconnectBtn" class="connection-btn disconnect" disabled>Disconnect</button>
+        </div>
     </div>
 
     <div class="container">
-        <h3>Publish Message</h3>
-        <div>
-            <label>Topic:</label><br>
-            <input type="text" id="publishTopic" value="test/topic" placeholder="Enter topic">
+        <h3>Motor Control Panel</h3>
+        <div class="control-panel">
+            <div class="motor-controls">
+                <button onclick="sendMotorCommand('forward')" id="forwardBtn" class="motor-btn forward" disabled>
+                    <span>⬆️</span> Forward
+                </button>
+                <button onclick="sendMotorCommand('backward')" id="backwardBtn" class="motor-btn backward" disabled>
+                    <span>⬇️</span> Backward
+                </button>
+            </div>
+            
+            <button onclick="sendMotorCommand('stop')" id="stopBtn" class="motor-btn stop" disabled>
+                <span>⏹️</span> STOP MOTOR
+            </button>
+            
+            <div class="speed-control">
+                <h4>Motor Speed: <span id="speedValue">128</span>/255</h4>
+                <input type="range" min="0" max="255" value="128" class="speed-slider" id="speedSlider" onchange="updateSpeed()">
+            </div>
+            
+            <div class="motor-status">
+                Current Status: <span id="currentStatus">Not connected</span>
+            </div>
         </div>
-        <div>
-            <label>Message:</label><br>
-            <textarea id="publishMessage" rows="3" cols="50" placeholder="Enter your message"></textarea>
-        </div>
-        <button onclick="publishMessage()" id="publishBtn" disabled>Publish Message</button>
     </div>
 
     <div class="container">
-        <h3>Subscribe to Topic</h3>
-        <div>
-            <label>Topic to subscribe:</label><br>
-            <input type="text" id="subscribeTopic" value="test/topic" placeholder="Enter topic to subscribe">
-            <button onclick="subscribeToTopic()" id="subscribeBtn" disabled>Subscribe</button>
+        <h3>MQTT Topics</h3>
+        <div class="topic-input">
+            <label>Control Topic:</label>
+            <input type="text" id="controlTopic" value="motor/control">
+            <button onclick="updateControlTopic()">Update</button>
+        </div>
+        <div class="topic-input">
+            <label>Status Topic:</label>
+            <input type="text" id="statusTopic" value="motor/status">
+            <button onclick="subscribeToStatus()" id="subscribeBtn" disabled>Subscribe</button>
         </div>
     </div>
 
@@ -104,49 +246,69 @@
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
     <script>
         let client = null;
+        let controlTopic = "motor/control";
+        let statusTopic = "motor/status";
+        
         const statusElement = document.getElementById('status');
         const messageLogElement = document.getElementById('messageLog');
         const connectBtn = document.getElementById('connectBtn');
         const disconnectBtn = document.getElementById('disconnectBtn');
-        const publishBtn = document.getElementById('publishBtn');
+        const forwardBtn = document.getElementById('forwardBtn');
+        const backwardBtn = document.getElementById('backwardBtn');
+        const stopBtn = document.getElementById('stopBtn');
         const subscribeBtn = document.getElementById('subscribeBtn');
+        const speedSlider = document.getElementById('speedSlider');
+        const speedValue = document.getElementById('speedValue');
+        const currentStatusElement = document.getElementById('currentStatus');
 
         function connect() {
-            // Replace these with your actual HiveMQ credentials
             const url = 'wss://c4d63ec2e5cb45dbb9b44734c53778d5.s1.eu.hivemq.cloud:8884/mqtt';
             const options = {
                 clean: true,
                 connectTimeout: 4000,
-                clientId: 'web_client_' + Math.random().toString(16).substr(2, 8),
-                username: 'vipin', // Replace with your username
-                password: 'Vipin246880', // Replace with your password
+                clientId: 'motor_control_' + Math.random().toString(16).substr(2, 8),
+                username: 'vipin',
+                password: 'Vipin246880',
             };
 
-            logMessage('Connecting to HiveMQ...');
+            logMessage('Connecting to HiveMQ...', 'info');
             
             client = mqtt.connect(url, options);
 
             client.on('connect', function () {
                 updateStatus('Connected to HiveMQ Cloud!', true);
-                logMessage('Successfully connected to broker');
-                publishBtn.disabled = false;
+                logMessage('Successfully connected to MQTT broker', 'info');
+                
+                // Enable control buttons
+                forwardBtn.disabled = false;
+                backwardBtn.disabled = false;
+                stopBtn.disabled = false;
                 subscribeBtn.disabled = false;
                 connectBtn.disabled = true;
                 disconnectBtn.disabled = false;
+                
+                // Subscribe to status topic
+                subscribeToStatus();
             });
 
             client.on('message', function (topic, message) {
-                logMessage(`📨 Received on ${topic}: ${message.toString()}`);
+                const messageStr = message.toString();
+                logMessage(`Received on ${topic}: ${messageStr}`, 'received');
+                
+                // Update motor status if message is from status topic
+                if (topic === statusTopic) {
+                    currentStatusElement.textContent = messageStr;
+                }
             });
 
             client.on('error', function (error) {
-                logMessage(`❌ Connection error: ${error}`);
+                logMessage(`Connection error: ${error}`, 'error');
                 updateStatus('Connection failed', false);
             });
 
             client.on('close', function () {
                 updateStatus('Disconnected', false);
-                logMessage('Connection closed');
+                logMessage('Connection closed', 'info');
             });
         }
 
@@ -155,64 +317,87 @@
                 client.end();
                 client = null;
                 updateStatus('Disconnected', false);
-                publishBtn.disabled = true;
+                
+                // Disable control buttons
+                forwardBtn.disabled = true;
+                backwardBtn.disabled = true;
+                stopBtn.disabled = true;
                 subscribeBtn.disabled = true;
                 connectBtn.disabled = false;
                 disconnectBtn.disabled = true;
-                logMessage('Disconnected from broker');
+                
+                currentStatusElement.textContent = "Not connected";
+                logMessage('Disconnected from MQTT broker', 'info');
             }
         }
 
-        function publishMessage() {
+        function sendMotorCommand(command) {
             if (!client || !client.connected) {
-                logMessage('❌ Not connected to broker');
+                logMessage('Not connected to MQTT broker', 'error');
                 return;
             }
 
-            const topic = document.getElementById('publishTopic').value.trim();
-            const message = document.getElementById('publishMessage').value.trim();
-
-            if (!topic) {
-                logMessage('❌ Please enter a topic');
-                return;
-            }
-
-            if (!message) {
-                logMessage('❌ Please enter a message');
-                return;
-            }
-
-            client.publish(topic, message, (error) => {
-                if (error) {
-                    logMessage(`❌ Failed to publish: ${error}`);
-                } else {
-                    logMessage(`📤 Published to ${topic}: ${message}`);
-                    // Clear the message input after successful publish
-                    document.getElementById('publishMessage').value = '';
-                }
-            });
-        }
-
-        function subscribeToTopic() {
-            if (!client || !client.connected) {
-                logMessage('❌ Not connected to broker');
-                return;
-            }
-
-            const topic = document.getElementById('subscribeTopic').value.trim();
+            const speed = speedSlider.value;
+            let message;
             
-            if (!topic) {
-                logMessage('❌ Please enter a topic to subscribe');
+            switch(command) {
+                case 'forward':
+                    message = `FORWARD:${speed}`;
+                    break;
+                case 'backward':
+                    message = `BACKWARD:${speed}`;
+                    break;
+                case 'stop':
+                    message = 'STOP:0';
+                    break;
+                default:
+                    message = 'STOP:0';
+            }
+
+            client.publish(controlTopic, message, (error) => {
+                if (error) {
+                    logMessage(`Failed to send command: ${error}`, 'error');
+                } else {
+                    logMessage(`Sent command: ${message} to ${controlTopic}`, 'published');
+                    currentStatusElement.textContent = message.split(':')[0];
+                }
+            });
+        }
+
+        function updateSpeed() {
+            speedValue.textContent = speedSlider.value;
+        }
+
+        function updateControlTopic() {
+            const newTopic = document.getElementById('controlTopic').value.trim();
+            if (newTopic) {
+                controlTopic = newTopic;
+                logMessage(`Control topic updated to: ${controlTopic}`, 'info');
+            }
+        }
+
+        function subscribeToStatus() {
+            if (!client || !client.connected) {
+                logMessage('Not connected to broker', 'error');
                 return;
             }
 
-            client.subscribe(topic, (error) => {
-                if (error) {
-                    logMessage(`❌ Failed to subscribe to ${topic}: ${error}`);
-                } else {
-                    logMessage(`✅ Subscribed to topic: ${topic}`);
+            const newTopic = document.getElementById('statusTopic').value.trim();
+            if (newTopic) {
+                // Unsubscribe from previous topic if different
+                if (statusTopic !== newTopic && statusTopic) {
+                    client.unsubscribe(statusTopic);
                 }
-            });
+                
+                statusTopic = newTopic;
+                client.subscribe(statusTopic, (error) => {
+                    if (error) {
+                        logMessage(`Failed to subscribe to ${statusTopic}: ${error}`, 'error');
+                    } else {
+                        logMessage(`Subscribed to status topic: ${statusTopic}`, 'info');
+                    }
+                });
+            }
         }
 
         function updateStatus(message, isConnected) {
@@ -220,23 +405,17 @@
             statusElement.className = 'status ' + (isConnected ? 'connected' : 'disconnected');
         }
 
-        function logMessage(message) {
+        function logMessage(message, type = 'info') {
             const timestamp = new Date().toLocaleTimeString();
             const logEntry = document.createElement('div');
+            logEntry.className = `log-entry log-${type}`;
             logEntry.textContent = `[${timestamp}] ${message}`;
             messageLogElement.appendChild(logEntry);
             messageLogElement.scrollTop = messageLogElement.scrollHeight;
         }
 
-        // Allow pressing Enter to publish
-        document.getElementById('publishMessage').addEventListener('keypress', function(e) {
-            if (e.key === 'Enter' && e.ctrlKey) {
-                publishMessage();
-            }
-        });
-
-        // Demo credentials reminder
-        logMessage('⚠️ Remember to replace YOUR_HIVEMQ_USERNAME and YOUR_HIVEMQ_PASSWORD with your actual credentials!');
+        // Initialize
+        logMessage('Motor control interface ready. Click Connect to start.', 'info');
     </script>
 </body>
 </html>
