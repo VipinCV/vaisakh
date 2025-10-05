@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>MQTT.js Web Client</title>
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+</head>
+<body>
+    <h1>MQTT.js Web Client</h1>
+    <div>
+        <input type="button" onclick="connectAndPublish()" value="Connect and Publish">
+    </div>
+    <div id="messages"></div>
+
+    <script>
+        function connectAndPublish() {
+            // Connect to a public broker over WebSockets
+            const url = 'ws://broker.emqx.io:8083/mqtt';
+            const options = {
+                clean: true,
+                connectTimeout: 4000,
+                clientId: 'mqttjs_' + Math.random().toString(16).substr(2, 8),
+            };
+
+            const client = mqtt.connect(url, options);
+
+            client.on('connect', function () {
+                logMessage('Connected');
+                // Publish a message
+                client.publish('testtopic/hello', 'Hello from MQTT.js!', (err) => {
+                    if (!err) {
+                        logMessage('Message published');
+                    }
+                });
+                // Also subscribe to see incoming messages
+                client.subscribe('testtopic/#', (err) => {
+                    if (!err) logMessage('Subscribed to testtopic/#');
+                });
+            });
+
+            client.on('message', function (topic, message) {
+                // message is a Buffer
+                logMessage("Received on " + topic + ": " + message.toString());
+            });
+
+            client.on('error', function (err) {
+                logMessage('Error: ' + err);
+            });
+        }
+
+        function logMessage(msg) {
+            const messagesElement = document.getElementById("messages");
+            messagesElement.innerHTML += "<span>" + msg + "</span><br>";
+        }
+    </script>
+</body>
+</html>
