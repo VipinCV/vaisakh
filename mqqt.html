@@ -12,46 +12,30 @@
     </div>
     <div id="messages"></div>
 
-    <script>
-        function connectAndPublish() {
-            // Connect to a public broker over WebSockets
-            const url = 'ws://broker.emqx.io:8083/mqtt';
-            const options = {
-                clean: true,
-                connectTimeout: 4000,
-                clientId: 'mqttjs_' + Math.random().toString(16).substr(2, 8),
-            };
+  <script>
+  // Connection options
+  const url = 'wss://c4d63ec2e5cb45dbb9b44734c53778d5.s1.eu.hivemq.cloud:8884/mqtt';//
+  const options = {
+    clean: true,
+    connectTimeout: 4000,
+    clientId: 'your_web_client_id',
+    username: 'vipin', // Get this from HiveMQ Cloud console
+    password: 'Vipin246880', // Get this from HiveMQ Cloud console
+  };
 
-            const client = mqtt.connect(url, options);
+  // Connect to the broker
+  const client = mqtt.connect(url, options);
 
-            client.on('connect', function () {
-                logMessage('Connected');
-                // Publish a message
-                client.publish('testtopic/hello', 'Hello from MQTT.js!', (err) => {
-                    if (!err) {
-                        logMessage('Message published');
-                    }
-                });
-                // Also subscribe to see incoming messages
-                client.subscribe('testtopic/#', (err) => {
-                    if (!err) logMessage('Subscribed to testtopic/#');
-                });
-            });
+  client.on('connect', function () {
+    console.log('Connected to HiveMQ Cloud!');
+    // You can now subscribe to topics or publish messages here.
+    client.subscribe('my/topic');
+  });
 
-            client.on('message', function (topic, message) {
-                // message is a Buffer
-                logMessage("Received on " + topic + ": " + message.toString());
-            });
-
-            client.on('error', function (err) {
-                logMessage('Error: ' + err);
-            });
-        }
-
-        function logMessage(msg) {
-            const messagesElement = document.getElementById("messages");
-            messagesElement.innerHTML += "<span>" + msg + "</span><br>";
-        }
-    </script>
+  client.on('message', function (topic, message) {
+    // This function is called when a message is received.
+    console.log('Received message on %s: %s', topic, message.toString());
+  });
+</script>
 </body>
 </html>
