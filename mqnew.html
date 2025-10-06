@@ -1,0 +1,1071 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AC Motor Control Dashboard</title>
+    <style>
+        :root {
+            --primary: #1a237e;
+            --secondary: #283593;
+            --accent: #3949ab;
+            --success: #00c853;
+            --danger: #ff1744;
+            --warning: #ff9100;
+            --info: #00b0ff;
+            --light: #f8f9fa;
+            --dark: #121858;
+            --gray: #eceff1;
+            --text: #263238;
+            --text-light: #546e7a;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            color: var(--text);
+            font-size: 13px;
+            line-height: 1.4;
+        }
+        
+        .dashboard {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(10px);
+            border-radius: 16px;
+            box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+            overflow: hidden;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, var(--primary), var(--secondary));
+            color: white;
+            padding: 20px 30px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .header h1 {
+            font-size: 22px;
+            font-weight: 600;
+            margin-bottom: 4px;
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .header h1::before {
+            content: "⚡";
+            font-size: 24px;
+        }
+        
+        .header p {
+            font-size: 12px;
+            opacity: 0.9;
+            font-weight: 300;
+        }
+        
+        .grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            padding: 25px;
+        }
+        
+        @media (max-width: 968px) {
+            .grid {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        .card {
+            background: white;
+            border-radius: 12px;
+            padding: 20px;
+            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+            border: 1px solid rgba(0, 0, 0, 0.05);
+            transition: transform 0.2s ease, box-shadow 0.2s ease;
+        }
+        
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(0, 0, 0, 0.12);
+        }
+        
+        .card h3 {
+            font-size: 14px;
+            font-weight: 600;
+            color: var(--primary);
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .card h3::before {
+            font-size: 16px;
+        }
+        
+        .status-badge {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+        
+        .status-connected {
+            background: rgba(0, 200, 83, 0.1);
+            color: var(--success);
+            border: 1px solid rgba(0, 200, 83, 0.2);
+        }
+        
+        .status-disconnected {
+            background: rgba(255, 23, 68, 0.1);
+            color: var(--danger);
+            border: 1px solid rgba(255, 23, 68, 0.2);
+        }
+        
+        .connection-controls {
+            display: flex;
+            gap: 10px;
+            margin-top: 15px;
+        }
+        
+        .btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 8px;
+            font-size: 11px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        
+        .btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+        
+        .btn-primary {
+            background: var(--accent);
+            color: white;
+        }
+        
+        .btn-success {
+            background: var(--success);
+            color: white;
+        }
+        
+        .btn-danger {
+            background: var(--danger);
+            color: white;
+        }
+        
+        .btn-warning {
+            background: var(--warning);
+            color: white;
+        }
+        
+        .btn:hover:not(:disabled) {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+        }
+        
+        .mode-toggle {
+            display: flex;
+            background: var(--gray);
+            border-radius: 10px;
+            padding: 4px;
+            margin: 10px 0;
+        }
+        
+        .mode-btn {
+            flex: 1;
+            padding: 8px 12px;
+            text-align: center;
+            border: none;
+            background: transparent;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 11px;
+            font-weight: 600;
+            transition: all 0.2s ease;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+        
+        .mode-btn.active {
+            background: white;
+            color: var(--primary);
+            box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        .motor-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        
+        .motor-status {
+            text-align: center;
+            font-size: 12px;
+            padding: 10px;
+            border-radius: 8px;
+            background: rgba(0, 176, 255, 0.05);
+            border: 1px solid rgba(0, 176, 255, 0.1);
+            margin: 8px 0;
+        }
+        
+        .motor-btn {
+            padding: 12px;
+            font-size: 12px;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .motor-btn:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none !important;
+        }
+        
+        .btn-on {
+            background: linear-gradient(135deg, var(--success), #00e676);
+            color: white;
+        }
+        
+        .btn-off {
+            background: linear-gradient(135deg, var(--danger), #ff5252);
+            color: white;
+        }
+        
+        .relay-diagram {
+            text-align: center;
+            margin: 15px 0;
+            padding: 15px;
+            background: linear-gradient(135deg, #f5f7fa, #c3cfe2);
+            border-radius: 12px;
+            border: 1px solid rgba(0, 0, 0, 0.05);
+        }
+        
+        .diagram {
+            display: inline-block;
+            position: relative;
+            width: 160px;
+            height: 80px;
+            background: linear-gradient(135deg, #78909c, #546e7a);
+            border-radius: 8px;
+            margin: 8px;
+            box-shadow: inset 0 2px 4px rgba(0, 0, 0, 0.2);
+        }
+        
+        .relay-line {
+            position: absolute;
+            width: 80%;
+            height: 3px;
+            background: #e53935;
+            top: 50%;
+            left: 10%;
+            transform: translateY(-50%);
+            transition: all 0.3s ease;
+        }
+        
+        .relay-contact {
+            position: absolute;
+            width: 16px;
+            height: 16px;
+            background: #455a64;
+            border-radius: 50%;
+            top: 50%;
+            transform: translateY(-50%);
+            transition: all 0.3s ease;
+        }
+        
+        .contact-1 {
+            left: 20%;
+        }
+        
+        .contact-2 {
+            right: 20%;
+        }
+        
+        .active-relay .relay-line {
+            background: var(--success);
+            box-shadow: 0 0 10px rgba(0, 200, 83, 0.5);
+        }
+        
+        .active-relay .relay-contact {
+            background: var(--success);
+            box-shadow: 0 0 8px rgba(0, 200, 83, 0.4);
+        }
+        
+        .current-time {
+            text-align: center;
+            font-size: 11px;
+            margin: 8px 0;
+            padding: 8px;
+            background: var(--dark);
+            color: white;
+            border-radius: 6px;
+            font-weight: 600;
+        }
+        
+        .schedule-controls {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        
+        .time-input {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin: 8px 0;
+            flex-wrap: wrap;
+        }
+        
+        .time-input input {
+            padding: 6px 8px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 11px;
+            width: 70px;
+        }
+        
+        .time-input input:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 2px rgba(57, 73, 171, 0.1);
+        }
+        
+        .schedule-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 8px 12px;
+            background: var(--gray);
+            border-radius: 8px;
+            margin: 4px 0;
+            font-size: 11px;
+        }
+        
+        .schedule-time {
+            font-weight: 600;
+            color: var(--primary);
+        }
+        
+        .schedule-actions {
+            display: flex;
+            gap: 6px;
+        }
+        
+        .schedule-actions button {
+            padding: 4px 8px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 10px;
+            font-weight: 600;
+        }
+        
+        .schedule-enabled {
+            background: var(--success);
+            color: white;
+        }
+        
+        .schedule-disabled {
+            background: #90a4ae;
+            color: white;
+        }
+        
+        .delete-schedule {
+            background: var(--danger);
+            color: white;
+        }
+        
+        .message-log {
+            background: #1a237e;
+            color: white;
+            padding: 15px;
+            height: 200px;
+            overflow-y: auto;
+            margin-top: 12px;
+            border-radius: 8px;
+            font-family: 'JetBrains Mono', 'Fira Code', monospace;
+            font-size: 11px;
+            line-height: 1.3;
+        }
+        
+        .log-entry {
+            margin-bottom: 4px;
+            padding: 6px 8px;
+            border-radius: 4px;
+            border-left: 3px solid transparent;
+        }
+        
+        .log-published {
+            background: rgba(0, 200, 83, 0.1);
+            border-left-color: var(--success);
+        }
+        
+        .log-received {
+            background: rgba(0, 176, 255, 0.1);
+            border-left-color: var(--info);
+        }
+        
+        .log-error {
+            background: rgba(255, 23, 68, 0.1);
+            border-left-color: var(--danger);
+        }
+        
+        .log-info {
+            background: rgba(255, 145, 0, 0.1);
+            border-left-color: var(--warning);
+        }
+        
+        .log-warning {
+            background: rgba(255, 193, 7, 0.1);
+            border-left-color: #ffc107;
+        }
+        
+        .topics-control {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+            margin: 12px 0;
+        }
+        
+        .topic-input {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        
+        .topic-input label {
+            font-size: 11px;
+            font-weight: 600;
+            color: var(--text-light);
+        }
+        
+        .topic-input input {
+            padding: 6px 8px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 11px;
+        }
+        
+        .topic-input input:focus {
+            outline: none;
+            border-color: var(--accent);
+            box-shadow: 0 0 0 2px rgba(57, 73, 171, 0.1);
+        }
+        
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 12px;
+            margin: 15px 0;
+        }
+        
+        .stat-card {
+            background: linear-gradient(135deg, var(--light), #e3f2fd);
+            padding: 12px;
+            border-radius: 8px;
+            text-align: center;
+            border: 1px solid rgba(0, 0, 0, 0.05);
+        }
+        
+        .stat-value {
+            font-size: 16px;
+            font-weight: 700;
+            color: var(--primary);
+            margin-bottom: 4px;
+        }
+        
+        .stat-label {
+            font-size: 10px;
+            color: var(--text-light);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .footer {
+            text-align: center;
+            padding: 15px;
+            border-top: 1px solid rgba(0, 0, 0, 0.05);
+            font-size: 10px;
+            color: var(--text-light);
+        }
+        
+        /* Scrollbar styling */
+        .message-log::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        .message-log::-webkit-scrollbar-track {
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 3px;
+        }
+        
+        .message-log::-webkit-scrollbar-thumb {
+            background: rgba(255, 255, 255, 0.3);
+            border-radius: 3px;
+        }
+        
+        .message-log::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.5);
+        }
+    </style>
+</head>
+<body>
+    <div class="dashboard">
+        <div class="header">
+            <h1>AC Motor Control Dashboard</h1>
+            <p>Real-time monitoring and control of your AC motor with smart scheduling</p>
+        </div>
+        
+        <div class="grid">
+            <!-- Connection & Status Column -->
+            <div class="column">
+                <div class="card">
+                    <h3>🔗 Connection Status</h3>
+                    <div id="status" class="status-badge status-disconnected">Disconnected</div>
+                    <div class="connection-controls">
+                        <button onclick="connect()" id="connectBtn" class="btn btn-primary">
+                            <span>🔌</span> Connect
+                        </button>
+                        <button onclick="disconnect()" id="disconnectBtn" class="btn btn-danger" disabled>
+                            <span>❌</span> Disconnect
+                        </button>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3>⚙️ Operation Mode</h3>
+                    <div class="mode-toggle">
+                        <button id="manualModeBtn" class="mode-btn active" onclick="setMode('manual')">
+                            🖐️ Manual
+                        </button>
+                        <button id="autoModeBtn" class="mode-btn" onclick="setMode('auto')">
+                            🤖 Auto
+                        </button>
+                    </div>
+                    
+                    <div id="manualControls">
+                        <div class="motor-status">
+                            <strong>Current Status:</strong> <span id="currentStatus" style="color: var(--danger);">OFF</span>
+                        </div>
+                        <div class="motor-controls">
+                            <button onclick="sendMotorCommand('ON')" id="onBtn" class="motor-btn btn-on" disabled>
+                                <span>⚡</span> TURN ON
+                            </button>
+                            <button onclick="sendMotorCommand('OFF')" id="offBtn" class="motor-btn btn-off" disabled>
+                                <span>⭕</span> TURN OFF
+                            </button>
+                        </div>
+                        
+                        <div class="relay-diagram">
+                            <h4 style="margin-bottom: 8px; font-size: 12px;">2-Way Relay Status</h4>
+                            <div id="relayDiagram" class="diagram">
+                                <div class="relay-line"></div>
+                                <div class="relay-contact contact-1"></div>
+                                <div class="relay-contact contact-2"></div>
+                            </div>
+                            <p id="relayStatus" style="font-size: 11px; margin-top: 8px;">Relay: OPEN (Motor OFF)</p>
+                        </div>
+                    </div>
+                    
+                    <div id="autoControls" style="display: none;">
+                        <div class="current-time">
+                            🕒 <span id="currentTime">--:--:--</span>
+                        </div>
+                        <div class="motor-status">
+                            <strong>Next Run:</strong> <span id="nextRunTime">--:--</span>
+                        </div>
+                        
+                        <h4 style="font-size: 12px; margin: 12px 0 8px 0;">Add Schedule</h4>
+                        <div class="time-input">
+                            <input type="time" id="scheduleTime" value="06:00">
+                            <input type="number" id="scheduleDuration" value="5" min="1" max="60" placeholder="Mins">
+                            <button onclick="addSchedule()" id="addScheduleBtn" class="btn btn-success" style="font-size: 10px; padding: 6px 10px;">
+                                ➕ Add
+                            </button>
+                        </div>
+                        
+                        <h4 style="font-size: 12px; margin: 12px 0 8px 0;">Scheduled Runs</h4>
+                        <div id="schedulesList">
+                            <!-- Schedules will be added here dynamically -->
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Controls & Monitoring Column -->
+            <div class="column">
+                <div class="card">
+                    <h3>📊 System Stats</h3>
+                    <div class="stats-grid">
+                        <div class="stat-card">
+                            <div class="stat-value" id="uptimeStat">--</div>
+                            <div class="stat-label">Uptime</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="messageStat">0</div>
+                            <div class="stat-label">Messages</div>
+                        </div>
+                        <div class="stat-card">
+                            <div class="stat-value" id="scheduleStat">2</div>
+                            <div class="stat-label">Schedules</div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3>🔧 MQTT Configuration</h3>
+                    <div class="topics-control">
+                        <div class="topic-input">
+                            <label>Control Topic</label>
+                            <input type="text" id="controlTopic" value="ac_motor/control">
+                        </div>
+                        <div class="topic-input">
+                            <label>Status Topic</label>
+                            <input type="text" id="statusTopic" value="ac_motor/status">
+                        </div>
+                    </div>
+                    <div class="connection-controls">
+                        <button onclick="updateTopics()" id="updateTopicBtn" class="btn btn-primary" disabled>
+                            🔄 Update
+                        </button>
+                        <button onclick="subscribeToStatus()" id="subscribeBtn" class="btn btn-success" disabled>
+                            📡 Subscribe
+                        </button>
+                    </div>
+                </div>
+
+                <div class="card">
+                    <h3>📝 Message Log</h3>
+                    <div id="messageLog" class="message-log">
+                        <div class="log-entry log-info">
+                            [--:--:--] AC Motor Control Dashboard initialized
+                        </div>
+                        <div class="log-entry log-info">
+                            [--:--:--] Default schedules: 6:00 AM and 6:00 PM (5 mins each)
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="footer">
+            AC Motor Control System • Built with ESP32 & MQTT • VIPIN
+        </div>
+    </div>
+
+   <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+    <script>
+        let client = null;
+        let controlTopic = "ac_motor/control";
+        let statusTopic = "ac_motor/status";
+        let operationMode = "manual";
+        let schedules = [];
+        let motorState = "OFF";
+        
+        // DOM elements
+        const statusElement = document.getElementById('status');
+        const messageLogElement = document.getElementById('messageLog');
+        const connectBtn = document.getElementById('connectBtn');
+        const disconnectBtn = document.getElementById('disconnectBtn');
+        const onBtn = document.getElementById('onBtn');
+        const offBtn = document.getElementById('offBtn');
+        const manualModeBtn = document.getElementById('manualModeBtn');
+        const autoModeBtn = document.getElementById('autoModeBtn');
+        const manualControls = document.getElementById('manualControls');
+        const autoControls = document.getElementById('autoControls');
+        const subscribeBtn = document.getElementById('subscribeBtn');
+        const updateTopicBtn = document.getElementById('updateTopicBtn');
+        const currentStatusElement = document.getElementById('currentStatus');
+        const currentTimeElement = document.getElementById('currentTime');
+        const nextRunTimeElement = document.getElementById('nextRunTime');
+        const relayDiagram = document.getElementById('relayDiagram');
+        const relayStatusElement = document.getElementById('relayStatus');
+        const schedulesList = document.getElementById('schedulesList');
+        const addScheduleBtn = document.getElementById('addScheduleBtn');
+
+        // Initialize with default schedule (6 AM and 6 PM)
+        schedules = [
+            { id: 1, time: "06:00", duration: 5, enabled: true },
+            { id: 2, time: "18:00", duration: 5, enabled: true }
+        ];
+        renderSchedules();
+
+        // Update current time every second
+        setInterval(updateCurrentTime, 1000);
+        updateCurrentTime();
+
+        function connect() {
+            const url = 'wss://c4d63ec2e5cb45dbb9b44734c53778d5.s1.eu.hivemq.cloud:8884/mqtt';
+            const options = {
+                clean: true,
+                connectTimeout: 4000,
+                clientId: 'ac_motor_control_' + Math.random().toString(16).substr(2, 8),
+                username: 'vipin',
+                password: 'Vipin246880',
+            };
+
+            logMessage('Connecting to HiveMQ...', 'info');
+            
+            client = mqtt.connect(url, options);
+
+            client.on('connect', function () {
+                updateStatus('Connected to HiveMQ Cloud!', true);
+                logMessage('Successfully connected to MQTT broker', 'info');
+                
+                // Enable control buttons
+                onBtn.disabled = false;
+                offBtn.disabled = false;
+                updateTopicBtn.disabled = false;
+                subscribeBtn.disabled = false;
+                addScheduleBtn.disabled = false;
+                connectBtn.disabled = true;
+                disconnectBtn.disabled = false;
+                
+                // Subscribe to status topic
+                subscribeToStatus();
+                
+                // Send current mode to ESP32
+                sendModeUpdate();
+            });
+
+            client.on('message', function (topic, message) {
+                const messageStr = message.toString();
+                logMessage(`Received on ${topic}: ${messageStr}`, 'received');
+                
+                // Update motor status if message is from status topic
+                if (topic === statusTopic) {
+                    if (messageStr === "ON" || messageStr === "OFF") {
+                        updateMotorState(messageStr);
+                    } else if (messageStr.startsWith("MODE:")) {
+                        const mode = messageStr.split(":")[1];
+                        setMode(mode, false); // Update UI without sending back to ESP
+                    }
+                }
+            });
+
+            client.on('error', function (error) {
+                logMessage(`Connection error: ${error}`, 'error');
+                updateStatus('Connection failed', false);
+            });
+
+            client.on('close', function () {
+                updateStatus('Disconnected', false);
+                logMessage('Connection closed', 'info');
+            });
+        }
+
+        function disconnect() {
+            if (client) {
+                client.end();
+                client = null;
+                updateStatus('Disconnected', false);
+                
+                // Disable control buttons
+                onBtn.disabled = true;
+                offBtn.disabled = true;
+                updateTopicBtn.disabled = true;
+                subscribeBtn.disabled = true;
+                addScheduleBtn.disabled = true;
+                connectBtn.disabled = false;
+                disconnectBtn.disabled = true;
+                
+                updateMotorState("OFF");
+                logMessage('Disconnected from MQTT broker', 'info');
+            }
+        }
+
+        function setMode(mode, sendToESP = true) {
+            operationMode = mode;
+            
+            // Update UI
+            if (mode === 'manual') {
+                manualModeBtn.classList.add('active');
+                autoModeBtn.classList.remove('active');
+                manualControls.style.display = 'block';
+                autoControls.style.display = 'none';
+            } else {
+                manualModeBtn.classList.remove('active');
+                autoModeBtn.classList.add('active');
+                manualControls.style.display = 'none';
+                autoControls.style.display = 'block';
+            }
+            
+            // Send mode to ESP32 if connected
+            if (sendToESP && client && client.connected) {
+                sendModeUpdate();
+            }
+            
+            logMessage(`Switched to ${mode} mode`, 'info');
+        }
+
+        function sendModeUpdate() {
+            if (!client || !client.connected) return;
+            
+            const message = `MODE:${operationMode}`;
+            client.publish(controlTopic, message, (error) => {
+                if (error) {
+                    logMessage(`Failed to send mode: ${error}`, 'error');
+                } else {
+                    logMessage(`Sent mode: ${operationMode}`, 'published');
+                }
+            });
+        }
+
+        function sendMotorCommand(command) {
+            if (!client || !client.connected) {
+                logMessage('Not connected to MQTT broker', 'error');
+                return;
+            }
+
+            const message = `MOTOR:${command}`;
+            client.publish(controlTopic, message, (error) => {
+                if (error) {
+                    logMessage(`Failed to send command: ${error}`, 'error');
+                } else {
+                    logMessage(`Sent command: ${command} to ${controlTopic}`, 'published');
+                    // Optimistically update UI (will be confirmed when ESP32 responds)
+                    if (command === 'ON' || command === 'OFF') {
+                        updateMotorState(command);
+                    }
+                }
+            });
+        }
+
+        function updateMotorState(state) {
+            motorState = state;
+            currentStatusElement.textContent = state;
+            
+            // Update relay diagram
+            if (state === 'ON') {
+                relayDiagram.classList.add('active-relay');
+                relayStatusElement.textContent = 'Relay: CLOSED (Motor ON)';
+            } else {
+                relayDiagram.classList.remove('active-relay');
+                relayStatusElement.textContent = 'Relay: OPEN (Motor OFF)';
+            }
+        }
+
+        function addSchedule() {
+            const time = document.getElementById('scheduleTime').value;
+            const duration = parseInt(document.getElementById('scheduleDuration').value);
+            
+            if (!time) {
+                logMessage('Please select a time for the schedule', 'warning');
+                return;
+            }
+            
+            const newSchedule = {
+                id: Date.now(), // Use timestamp as unique ID
+                time: time,
+                duration: duration,
+                enabled: true
+            };
+            
+            schedules.push(newSchedule);
+            renderSchedules();
+            logMessage(`Added schedule: ${time} for ${duration} minutes`, 'info');
+            
+            // Send schedules to ESP32 if connected
+            sendSchedulesToESP();
+        }
+
+        function renderSchedules() {
+            schedulesList.innerHTML = '';
+            
+            if (schedules.length === 0) {
+                schedulesList.innerHTML = '<p>No schedules added yet.</p>';
+                return;
+            }
+            
+            // Sort schedules by time
+            schedules.sort((a, b) => a.time.localeCompare(b.time));
+            
+            schedules.forEach(schedule => {
+                const scheduleItem = document.createElement('div');
+                scheduleItem.className = 'schedule-item';
+                
+                scheduleItem.innerHTML = `
+                    <div class="schedule-time">${schedule.time} (${schedule.duration} min)</div>
+                    <div class="schedule-actions">
+                        <button class="${schedule.enabled ? 'schedule-enabled' : 'schedule-disabled'}" 
+                                onclick="toggleSchedule(${schedule.id})">
+                            ${schedule.enabled ? 'Enabled' : 'Disabled'}
+                        </button>
+                        <button class="delete-schedule" onclick="deleteSchedule(${schedule.id})">Delete</button>
+                    </div>
+                `;
+                
+                schedulesList.appendChild(scheduleItem);
+            });
+            
+            // Update next run time display
+            updateNextRunTime();
+        }
+
+        function toggleSchedule(id) {
+            const schedule = schedules.find(s => s.id === id);
+            if (schedule) {
+                schedule.enabled = !schedule.enabled;
+                renderSchedules();
+                logMessage(`Schedule ${schedule.time} ${schedule.enabled ? 'enabled' : 'disabled'}`, 'info');
+                sendSchedulesToESP();
+            }
+        }
+
+        function deleteSchedule(id) {
+            schedules = schedules.filter(s => s.id !== id);
+            renderSchedules();
+            logMessage('Schedule deleted', 'info');
+            sendSchedulesToESP();
+        }
+
+        function sendSchedulesToESP() {
+            if (!client || !client.connected) return;
+            
+            const scheduleData = schedules.map(s => ({
+                t: s.time,
+                d: s.duration,
+                e: s.enabled
+            }));
+            
+            const message = `SCHEDULES:${JSON.stringify(scheduleData)}`;
+            client.publish(controlTopic, message, (error) => {
+                if (error) {
+                    logMessage(`Failed to send schedules: ${error}`, 'error');
+                } else {
+                    logMessage('Schedules sent to ESP32', 'published');
+                }
+            });
+        }
+
+        function updateNextRunTime() {
+            const now = new Date();
+            const currentTime = now.getHours().toString().padStart(2, '0') + ':' + 
+                              now.getMinutes().toString().padStart(2, '0');
+            
+            // Find the next enabled schedule
+            const enabledSchedules = schedules.filter(s => s.enabled);
+            if (enabledSchedules.length === 0) {
+                nextRunTimeElement.textContent = 'No scheduled runs';
+                return;
+            }
+            
+            // Sort by time and find the next one
+            enabledSchedules.sort((a, b) => a.time.localeCompare(b.time));
+            let nextSchedule = enabledSchedules.find(s => s.time > currentTime);
+            
+            // If no schedule found for today, use the first one tomorrow
+            if (!nextSchedule) {
+                nextSchedule = enabledSchedules[0];
+            }
+            
+            nextRunTimeElement.textContent = `${nextSchedule.time} (${nextSchedule.duration} minutes)`;
+        }
+
+        function updateCurrentTime() {
+            const now = new Date();
+            currentTimeElement.textContent = now.toLocaleTimeString();
+        }
+
+        function updateTopics() {
+            const newControlTopic = document.getElementById('controlTopic').value.trim();
+            const newStatusTopic = document.getElementById('statusTopic').value.trim();
+            
+            if (newControlTopic) {
+                controlTopic = newControlTopic;
+            }
+            
+            if (newStatusTopic) {
+                // Unsubscribe from old topic first
+                if (statusTopic && client) {
+                    client.unsubscribe(statusTopic);
+                }
+                statusTopic = newStatusTopic;
+            }
+            
+            logMessage(`Topics updated: Control=${controlTopic}, Status=${statusTopic}`, 'info');
+            
+            // Resubscribe to status topic
+            subscribeToStatus();
+        }
+
+        function subscribeToStatus() {
+            if (!client || !client.connected) {
+                logMessage('Not connected to broker', 'error');
+                return;
+            }
+
+            if (!statusTopic) {
+                logMessage('Please set a status topic first', 'warning');
+                return;
+            }
+
+            client.subscribe(statusTopic, (error) => {
+                if (error) {
+                    logMessage(`Failed to subscribe to ${statusTopic}: ${error}`, 'error');
+                } else {
+                    logMessage(`Subscribed to status topic: ${statusTopic}`, 'info');
+                // Request current status from ESP32
+                    sendMotorCommand('STATUS');
+                }
+            });
+        }
+
+        function updateStatus(message, isConnected) {
+            statusElement.textContent = message;
+            statusElement.className = 'status ' + (isConnected ? 'connected' : 'disconnected');
+        }
+
+        function logMessage(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logEntry = document.createElement('div');
+            logEntry.className = `log-entry log-${type}`;
+            logEntry.textContent = `[${timestamp}] ${message}`;
+            messageLogElement.appendChild(logEntry);
+            messageLogElement.scrollTop = messageLogElement.scrollHeight;
+        }
+
+        // Initialize
+        logMessage('AC Motor Control interface ready. Click Connect to start.', 'info');
+        logMessage('Default schedules: 6:00 AM and 6:00 PM for 5 minutes each', 'info');
+    </script>
+</body>
+</html>
